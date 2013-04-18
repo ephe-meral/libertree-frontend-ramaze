@@ -1,29 +1,32 @@
 source 'http://rubygems.org'
-gem 'ramaze'
+gem 'ramaze', :git => 'git://github.com/Ramaze/ramaze.git'
+gem 'innate', :git => 'git://github.com/Ramaze/innate.git'
 gem 'm4dbi'
+gem 'json'
 gem 'pg'
-gem 'rdbi', :git => 'git://github.com/RDBI/rdbi.git'
-gem 'rdbi-driver-postgresql', :git => 'git://github.com/RDBI/rdbi-driver-postgresql.git'
+gem 'rdbi', :git => 'git://github.com/RDBI/rdbi.git', branch: 'sth-leak'
+gem 'rdbi-driver-postgresql', :git => 'git://github.com/RDBI/rdbi-driver-postgresql.git', branch: 'fix-execute-memory-leak'
 gem 'bcrypt-ruby'
 gem 'dalli'  # memcached client
-gem 'rspec'
 gem 'unicorn'
-gem 'pony'   # email lib
 gem 'em-websocket'
-gem 'rcrypt'
-gem 'redcarpet'
+gem 'rpeg-markdown', '1.4.6', :git => 'git://github.com/rekado/rpeg-markdown.git'
+gem 'nokogiri'
 gem 'mini_magick'
-gem 'loofah'
 gem 'sass'
+gem 'ruby-oembed'
+gem 'fast_gettext'
+gem 'syck', :platforms => [:ruby_20]
 
-gem 'libertree-db', path: '../libertree-db/rb'
-gem 'libertree-client', path: '../libertree-client-rb'
+gem 'libertree-model', :git => 'git://github.com/Libertree/libertree-model-rb.git'
 
 group 'development' do
+  gem 'rspec'
   gem 'capybara'
   gem 'factory_girl'
   gem 'racksh'
-  gem 'linecache19', :git => 'git://github.com/mark-moseley/linecache'
-  gem 'ruby-debug-base19x', '~> 0.11.30.pre4'
-  gem 'ruby-debug19'
+  gem 'linecache19', :git => 'git://github.com/mark-moseley/linecache', :platforms => [:ruby_19]
+  gem 'ruby-debug-base19x', '~> 0.11.30.pre4', :platforms => [:ruby_19]
+  gem 'ruby-debug19', :platforms => [:ruby_19]
+  gem 'debugger', platforms: [:ruby_20]
 end

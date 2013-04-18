@@ -1,53 +1,172 @@
 @import "colours.scss";
+@import "scss-include/mixins.scss";
+
+body.single-post-view {
+  height: 100%;
+  .main {
+    @include border-box;
+    margin: 0 auto;
+    padding: 70px 0px 30px 0px;
+    background: transparent;
+    height: 100%;
+  }
+}
 
 .single-post-view {
-  $distance_to_separator: 15px;
   div.post {
-    position: relative;
-    overflow: hidden;
+    height: 100%;
+    width: 100%;
+    display: inline-block;
     padding: 0;
+    @include rounded;
+
+    &.with-comments-sliding {
+      background-color: $dust; /* fallback for browsers that don't support alpha in colours */
+      background-color: $dust_translucent;
+    }
+
+    img {
+      max-width: 100%;
+    }
 
     div.post-pane {
-      position: absolute;
+      @include border-box;
+      width: 55%;
       height: 100%;
-      width: 50%;
+      overflow-y: auto;
+
+      padding: 2em;
+      background: $dust;
       float: left;
-      padding: 0 $distance_to_separator 0 0;
-      border-right: 1px solid $main_green;
-      overflow: auto;
+      border-right: 1px solid $sand;
+      border-radius: $border-radius 0 0 $border-radius;
+
       vertical-align: top;
 
       .post-proper {
         width: 100%;
-        img {
-          max-width: 450px;
-        }
         .post-text {
           width: 100%;
           word-wrap: break-word;
         }
+        .post-extras {
+            float: right;
+            width: 100%;
+            text-align: right;
+            margin-bottom: 1em;
+            > a, > span {
+                margin-left: 1em;
+            }
+        }
+        .meta {
+          @include rounded-top;
+          background: $sand;
+          margin: -2em -2em 1em;
+          padding-top: 28px;
+          padding-bottom: 4px;
+          overflow: hidden;
+
+          &:hover .post-tools {
+            opacity: 1;
+          }
+
+          .member {
+            display: inline-block;
+            padding: 0px 10px 0px 28px;
+            border-radius: $border-radius 0 0 $border-radius;
+            .member-text {
+                overflow: hidden;
+                text-overflow: ellipsis;
+                float: left;
+            }
+            img.avatar {
+                margin-bottom: 0px; /* override application.scss */
+            }
+          }
+
+          .post-tools {
+            margin-top: 0px; /* override application.scss */
+            margin-bottom: 30px;
+            span.num-likes {
+              margin-left: 1em;
+            }
+          }
+        }
       }
       &.expanded-post {
         width: 100%;
-        position: relative;
-        border: none;
-        padding: 0;
-        img {
-          max-width: 920px;
-        }
+        /* position: relative; */
       }
     }
     div.comments-pane {
-      margin-left: 50%;
-      padding-left: 2 * $distance_to_separator;
+      @include border-box;
+      width: 45%;
+      height: 100%;
+      padding: 28px;
+      border-radius: 0 $border-radius $border-radius 0;
+      /* position: relative; */
+      float: right;
+      z-index: 0;
+      overflow-y: auto;
+
+      background-color: $dust; /* fallback for browsers that don't support alpha in colours */
+      background-color: $dust_translucent;
+
       div.comments {
-        overflow-y: auto;
         vertical-align: top;
-        img {
-          max-width: 450px;
+        padding-right: 1em;
+        padding-bottom: 1em;
+
+        form.comment {
+          margin-left: 50px;
+          .form-buttons {
+            a.detach {
+              display: inline;
+            }
+          }
         }
+
+        textarea.comment {
+            width: 100%;
+        }
+
+        .detachable {
+          .drag-handle-bar {
+            display: none;
+            height: 1.5em;
+            background: $main_green;
+            cursor: move;
+          }
+          .comment {
+            max-width: 100%;
+          }
+        }
+
+        .detachable.detached {
+          position: fixed;
+          z-index: 2;
+          border: 1px solid $main_green;
+          @include rounded;
+
+          .drag-handle-bar {
+            display: block;
+          }
+
+          .content {
+            background: $dust;
+            padding: 1.5em;
+            margin: 0px;
+            border-top: 0px;
+          }
+
+          .preview-box {
+            max-width: 500px;
+          }
+        }
+
       }
       &.expanded-post {
+        display: none;
         width: 0;
       }
     }

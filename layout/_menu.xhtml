@@ -1,10 +1,14 @@
 <div class="menu has-shadow"><div id="menu-narrower">
-  <a href="/home"><img id="tree-icon" src="/images/tree-icon.png" alt="tree"/>
   <?r if @title ?>
-    <span style="float: left; margin: 4px 0px 0px 0px; font-size: 28px; font-weight: bold; color: #447057;">Libertree</span>
-    <span style="float: left; margin: 13px 0px 0px 6px; color: #003300; font-style: italic;">alpha</span>
-  <?r end ?></a>
-  <?r if logged_in? ?>
+  <a href="/home" class="home">
+    #{ img 'small-logo.png', {alt: 'logo', id: 'logo'} }
+    #{ img 'wordmark.png',   {alt: 'Libertree', id: 'wordmark'} }
+  </a>
+  <?r end ?>
+
+  <?r if ! logged_in? ?>
+    <a class="menu-item" id="menu-log-in" href="/login"><img src="/images/icon-login.png" alt="Log in"/> Log in</a>
+  <?r else ?>
     <a class="menu-item" id="menu-account" href="#">
       <?r if @account_name ?>
         #{account.member.name_display}
@@ -12,32 +16,47 @@
       #{ member_img(account.member) }
     </a>
     <div id="account-window" class="window has-shadow">
-      <a href="/profiles/show/#{account.member.id}"><img src="/images/icon-account.png" alt="Profile"/> Profile</a><br/>
-      <a href="/accounts/edit"><img src="/images/icon-settings.png" alt="Settings"/> Settings</a><br/>
-      <?r if session[:layout] == 'narrow' ?>
-        <a href="/layout/wide">large display</a></br>
+      <a href="/p/#{account.member.username}">#{img 'icon-account.png', {alt:s_('menu|Profile')}} #{s_('menu|Profile')}</a><br/>
+      <a href="/accounts/edit">#{img 'icon-settings.png', {alt:s_('menu|Settings')}} #{s_('menu|Settings')}</a><br/>
+      <a href="/contact-lists">#{img 'icon-group.png', {alt:s_('menu|Contact Lists')}} #{s_('menu|Contact Lists')}</a><br/>
+      Text:
+      <?r if account.font_css == 'fonts-small' ?>
+        <a href="/accounts/font" title="#{s_('menu|Legible font size')}">#{s_('menu|legible')}</a> | #{s_('menu|small')}
       <?r else ?>
-        <a href="/layout/narrow">small display</a></br>
+        #{s_('menu|legible')} | <a href="/accounts/font/small" title="#{s_('menu|Small font size')}">#{s_('menu|small')}</a>
       <?r end ?>
-      <a href="/logout"><img src="/images/icon-logout.png" alt="Log out"/> Log out</a>
+      <br/>
+      <?r if session[:layout] == 'narrow' ?>
+        <a href="/layout/wide" title="#{s_('menu|Currently in &quot;small display&quot; mode; click to change')}">#{img 'icon-display.png', {alt:s_('menu|Large display')}} #{s_('menu|Large display')}</a><br/>
+      <?r else ?>
+        <a href="/layout/narrow" title="#{s_('menu|Currently in &quot;large display&quot; mode; click to change')}">#{img 'icon-display.png', {alt:s_('menu|Small display')}} #{s_('menu|Small display')}</a><br/>
+      <?r end ?>
+      <?r if account.admin? ?>
+        <a href="/admin">#{img 'icon-admin.png', {alt:s_('menu|Administrate')}} #{s_('menu|Administrate')}</a><br/>
+      <?r end ?>
+      <a href="/logout">#{img 'icon-logout.png', {alt:s_('menu|Log out')}} #{s_('menu|Log out')}</a>
     </div>
 
-    <div id="main-menu-container">
+    <div id="main-menu-container" class="#{account.custom_link ? 'with-custom' : ''}">
+      <form action="/search" method="POST" class="search">
+        <input id="search" type="text" name="q"/>
+      </form>
+      <?r if session[:layout] != 'narrow' ?>
+      <a href="http://issues.libertreeproject.org" class="menu-item" title="#{s_('menu|Known Issues')}">#{img 'icon-exclamation.png', {alt:s_('menu|Known Issues')}}</a>
+      <?r end ?>
+      <a href="#" class="menu-item" id="toggle-sidebar" title="#{s_('menu|Toggle sidebar')}">#{img 'icon-sidebar.png', {alt:s_('menu|Toggle sidebar')}}</a>
+      <a href="/posts/new" class="menu-item" id="menu-post-new" title="#{s_('menu|New Post')}">#{img 'icon-edit.png', {alt:s_('menu|New Post')}}</a>
+      <a href="/messages" class="menu-item" title="#{_('Direct Messages')}">#{img 'icon-message.png', {alt:_('Direct Messages')}}</a>
+      #{ render_file 'layout/_chat.xhtml' }
+      #{ render_file 'layout/_notifications.xhtml' }
       <a
         href="/home"
         class="menu-item"
         id="menu-home"
-        title="#{(request.fullpath !~ /home/) ? 'Go Home' : 'You are at Home'}"><img src="/images/icon-home.png" alt="Home"/></a>
-      #{ render_file 'layout/_notifications.xhtml' }
-      <a href="/posts/new" class="menu-item" id="menu-post-new" title="New Post"><img src="/images/icon-edit.png" alt="New Post"/></a>
-      <form action="/search" method="POST" class="search">
-        <input id="search" type="text" name="q" tabindex="99"/>
-      </form>
-    </div>
-  <?r else ?>
-    <div id="logged-out-menu">
-      <a href="/signup"><img src="/images/icon-signup.png" alt="Sign up"/>Sign up</a>
-      <a href="/login"><img src="/images/icon-login.png" alt="Log in"/> Log in</a>
+        title="#{(request.fullpath !~ /home/) ? s_('menu|Go Home') : s_('menu|You are at Home')}">#{img 'icon-home.png', {alt:s_('menu|Home')}}</a>
+      <?r if account.custom_link ?>
+        <a href="#{account.custom_link}" class="menu-item">#{img 'icon-custom-link.png', {alt:"custom"}}</a>
+      <?r end ?>
     </div>
   <?r end ?>
 </div></div>

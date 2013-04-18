@@ -2,23 +2,24 @@ module Ramaze
   module Helper
     module Age
       def ago(datetime)
-        seconds_ = DateTime.now.to_time.to_i - datetime.to_time.to_i
-        minutes_ = seconds_ / 60
-        seconds = seconds_ % 60
-        hours_ = minutes_ / 60
-        minutes = minutes_ % 60
-        hours = hours_ % 60
-        days_ = hours_ / 24
-        days = days_ % 24
-        if days > 0
-          "#{days} day#{plural_s(days)} ago"
-        elsif hours > 0
-          "#{hours} hour#{plural_s(hours)} ago"
-        elsif minutes > 0
-          "#{minutes} minute#{plural_s(minutes)} ago"
+        total_seconds = DateTime.now.to_time.to_i - datetime.to_time.to_i
+        total_minutes = total_seconds / 60
+        total_hours = total_minutes / 60
+
+        display_seconds = total_seconds % 60
+        display_minutes = total_minutes % 60
+        display_hours = total_hours % 60
+        display_days = total_hours / 24
+
+        if display_days > 0
+          n_('1 day ago', '%d days ago', display_days) % display_days
+        elsif display_hours > 0
+          n_('1 hour ago', '%d hours ago', display_hours) % display_hours
+        elsif display_minutes > 0
+          n_('1 minute ago', '%d minutes ago', display_minutes) % display_minutes
         else
-          # "#{seconds} second#{plural_s(seconds)} ago"
-          "seconds ago"
+          #n_('1 second ago', '%d seconds ago', display_seconds) % display_seconds
+          _('seconds ago')
         end
       end
     end

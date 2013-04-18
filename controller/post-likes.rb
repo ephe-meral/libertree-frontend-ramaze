@@ -1,11 +1,9 @@
 module Controller
   class PostLikes < Base
     map '/likes/posts'
-
     before_all do
-      require_login
+      default_before_filter
     end
-
     layout nil
 
     def create(post_id)
@@ -18,17 +16,11 @@ module Controller
           'post_id'   => post.id,
         )
 
-        Libertree::Model::Job.create(
-          task: 'request:POST-LIKE',
-          params: {
-            'post_like_id' => like.id,
-          }.to_json
-        )
-
         # TODO: Use partial for number of likes
         return {
           'post_like_id' => like.id,
-          'num_likes' => post.likes.count,
+          'num_likes'    => post.likes.count,
+          'liked_by'     => _('Liked by %s') % post.likes.map { |l| l.member.name_display }.join(', '),
         }.to_json
       end
 
@@ -38,16 +30,13 @@ module Controller
     def destroy(post_like_id)
       like = Libertree::Model::PostLike[ post_like_id.to_i ]
       if like && like.member == account.member
-        Libertree::Model::Job.create(
-          task: 'request:POST-LIKE-DELETE',
-          params: {
-            'post_like_id' => like.id,
-          }.to_json
-        )
         like.delete_cascade
       end
 
-      like.post.likes.count
+      return {
+        'num_likes'    => like.post.likes.count,
+        'liked_by'     => _('Liked by %s') % like.post.likes.map { |l| l.member.name_display }.join(', '),
+      }.to_json
     end
   end
 end

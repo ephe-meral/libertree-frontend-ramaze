@@ -1,33 +1,77 @@
 <head>
-  <title>#{( @num_unseen && ( @num_unseen > 0 ) ) ? "(#{@num_unseen})" : ''} Libertree#{ @subtitle ? " - #{@subtitle}" : '' }</title>
+  <title>#{( @num_unseen && ( @num_unseen > 0 ) ) ? "(#{@num_unseen})" : ''} Libertree#{ $conf['title_insert'] ? " - #{::CGI.escape_html($conf['title_insert'])}" : '' }#{ @subtitle ? " - #{::CGI.escape_html(@subtitle)}" : '' }</title>
   <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
   <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0"/>
-  <link href="/css/application.css?t=#{File.mtime('public/css/application.css').to_i}" media="screen" rel="stylesheet" type="text/css" />
-  <link href="/css/single-post-view.css?t=#{File.mtime('public/css/single-post-view.css').to_i}" media="screen" rel="stylesheet" type="text/css" />
+
+  #{ css 'ui-lightness/jquery-ui-1.8.21.custom' }
+  #{ css 'chosen' }
+  #{ css 'bootstrap' }
+  #{ css_nocache 'application' }
+  #{ css_nocache (account.font_css || 'fonts') }
+  #{ css_nocache 'single-post-view' }
+  #{ css_nocache 'excerpts-view' }
+  #{ css_nocache 'profiles' }
+  #{ css_nocache 'messages' }
+  #{ css_nocache 'chat' }
+  #{ css_nocache 'search' }
+  <?r if account.admin? ?>
+    #{ css_nocache 'admin' }
+  <?r end ?>
 
   #{ @stylesheet_extra }
-  #{ css 'ui-lightness/jquery-ui-1.8.18.custom' }
 
   #{ js 'jquery-1.7.2.min' }
-  #{ js 'jquery-ui-1.8.18.custom.min' }
-  #{ js 'jquery.mousewheel.min' }
+  #{ js 'jquery-ui-1.8.21.custom.min' }
   #{ js 'jquery.expandable' }
-  <script src="/js/application.js?t=#{File.mtime('public/js/application.js').to_i}" type="text/javascript"></script>
+  #{ js 'jquery.cookie' }
+  #{ js 'jquery.mousewheel' }
+  #{ js 'chosen.jquery.min' }
+  #{ js 'textinputs_jquery' }
+  #{ js 'bootstrap.tooltip.popover' }
 
-  <script src="/js/comments.js?t=#{File.mtime('public/js/comments.js').to_i}" type="text/javascript"></script>
-  <script src="/js/home.js?t=#{File.mtime('public/js/home.js').to_i}" type="text/javascript"></script>
-  <script src="/js/notifications.js?t=#{File.mtime('public/js/notifications.js').to_i}" type="text/javascript"></script>
-  <script src="/js/post.js?t=#{File.mtime('public/js/post.js').to_i}" type="text/javascript"></script>
-  <script src="/js/post-new.js?t=#{File.mtime('public/js/post-new.js').to_i}" type="text/javascript"></script>
-  <script src="/js/river-new.js?t=#{File.mtime('public/js/river-new.js').to_i}" type="text/javascript"></script>
-  <script src="/js/websocket.js?t=#{File.mtime('public/js/websocket.js').to_i}" type="text/javascript"></script>
+  #{ js_nocache 'libertree' }
+  #{ js_nocache 'libertree/post_loader' }
+  #{ js_nocache 'libertree/ui' }
+  #{ js_nocache 'libertree/session' }
+  #{ js_nocache 'libertree/pools' }
+  #{ js_nocache 'libertree/notifications' }
+  #{ js_nocache 'libertree/chat' }
+  #{ js_nocache 'libertree/likes' }
+  #{ js_nocache 'libertree/posts' }
+  #{ js_nocache 'libertree/comments' }
+  #{ js_nocache 'application' }
+  #{ js_nocache 'comments' }
+  #{ js_nocache 'markdown-injector' }
+  #{ js_nocache 'notifications' }
+  #{ js_nocache 'chat' }
+  #{ js_nocache 'post' }
+  #{ js_nocache 'post-new' }
+  #{ js_nocache 'pool' }
+  #{ js_nocache 'home' }
+
+  <script type="text/javascript">
+    var host = #{ $conf['websocket_js_host'].to_s.inspect || request.host.inspect };
+    var secure_websocket = #{ $conf['secure_websocket'].to_s.inspect || 'false' };
+  </script>
+  <?r if ! $conf['websocket_blacklist'].include?(account.username) ?>
+    #{ js_nocache 'websocket' }
+  <?r end ?>
+
+  <?r if account.admin? ?>
+    #{ js_nocache 'admin' }
+  <?r end ?>
+  #{ controller_js }
 
   <style type="text/css">
+    .excerpts-view .post-excerpt div.excerpt .overflowed {
+      max-height: #{
+        account.excerpt_max_height ?  account.excerpt_max_height.to_s+'px' : 'auto'
+      };
+    }
     #{account.custom_css}
   </style>
 
   <script type="text/javascript">
-    var host = #{ request.host.inspect };
     var layout = #{ session[:layout].to_s.inspect };
 
     #{account.custom_js}

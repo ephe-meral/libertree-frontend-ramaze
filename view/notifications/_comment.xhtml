@@ -1,12 +1,10 @@
 <?r if @comment ?>
-  <div class="notification #{@notification.seen ? 'seen' : 'unseen'}" data-notification-id="#{@notification.id}">
-    #{ member_img(@comment.member) } #{ anded_list( @actors.map(&:name_display).uniq ) } commented on
+  #{ render_file 'view/notifications/_notification_head.xhtml', notifications: @notifications, avatar_member: @comment.member }
+    <?r link = "<a href=\"#{ comment_link(@comment) }\" title=\"#{::CGI.escape_html(@comment.post.glimpse)}\">" ?>
     <?r if @comment.post.member.account == account ?>
-      your
+      #{s_("#{@sg_or_pl}|%1$s commented on your %2$spost%3$s.") % [@actors, link, "</a>"]}
     <?r else ?>
-      #{@comment.post.member.name_display}'s
+      #{s_("#{@sg_or_pl}|%1$s commented on %2$s's %3$spost%4$s.") % [@actors, @comment.post.member.name_display, link, "</a>"]}
     <?r end ?>
-    <a href="/posts/show/#{@comment.post.id}#comment-#{@comment.id}" title="#{@comment.post.glimpse}">post</a>.
-    <div class="age">#{ago(@notification.time_created)}</div>
-  </div>
+  #{ render_file 'view/notifications/_notification_foot.xhtml', notifications: @notifications, glimpse: @comment.post.glimpse }
 <?r end ?>

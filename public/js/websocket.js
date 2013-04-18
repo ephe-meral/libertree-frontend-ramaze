@@ -1,39 +1,42 @@
-var host = null;
+var port = "8080";
 var ws = null;
 
-function getCookie(name) {
-  var nameEQ = name + "=";
-  var ca = document.cookie.split(';');
-  for(var i=0;i < ca.length;i++) {
-    var c = ca[i];
-    while (c.charAt(0)==' ') c = c.substring(1,c.length);
-    if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length,c.length);
-  }
-  return null;
-}
-
 $(document).ready( function() {
+  var protocol = "ws://";
+  if (secure_websocket) {
+    protocol = "wss://";
+  }
   if( 'MozWebSocket' in window ) {
-    ws = new MozWebSocket("ws://" + host + ":8080");
+    ws = new MozWebSocket(protocol + host + ":" + port);
   } else if( 'WebSocket' in window ) {
-    ws = new WebSocket("ws://" + host + ":8080");
+    ws = new WebSocket(protocol + host + ":" + port);
   } else {
     return;
   }
 
   ws.onopen = function(e) {
-    this.send('{ "sid": "' + getCookie('innate.sid') + '" }');
-  }
+    this.send('{ "sid": "' + $.cookie('innate.sid') + '" }');
+  };
 
   ws.onmessage = function(e) {
     var data = $.parseJSON(e.data);
 
     switch( data.command ) {
-      case 'post':
-        /* TODO */
+      case 'heartbeat':
+        /* Do nothing on heartbeat.  Heartbeats seem to increase/ensure websocket feature reliability. */
+        /* $('html').append('<!-- heartbeat: '+data.timestamp+' -->'); */
+        break;
+      case 'chat-message':
+        Libertree.Chat.receiveMessage(data);
+        break;
+      case 'comment':
+        Libertree.Comments.insertHtmlFor( data.postId, data.commentId );
+        break;
+      case 'river-posts':
+        Libertree.Home.indicateNewPosts(data);
         break;
       case 'notification':
-        updateNumNotificationsUnseen(data.n);
+        Libertree.Notifications.updateNumUnseen(data.n);
         break;
     }
   }

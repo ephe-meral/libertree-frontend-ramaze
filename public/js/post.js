@@ -1,79 +1,80 @@
-function markPostRead(post_id) {
-  $.get(
-    '/posts/read/' + post_id,
-    function() {
-      var post = $('*[data-post-id="'+post_id+'"]');
-      post.find('.mark-read').addClass('hidden');
-      post.find('.mark-unread').removeClass('hidden');
-    }
-  );
-}
-
 $(document).ready( function() {
-  $('.post-tools a.like').live( 'click', function() {
-    var link = $(this);
-    var post = link.closest('div.post, .post-excerpt');
-    if( post.length ) {
-      $.get(
-        '/likes/posts/create/' + post.data('post-id'),
-        function(response) {
-          var h = $.parseJSON(response);
-          link.addClass('hidden');
-          link.siblings('a.unlike').removeClass('hidden').data('post-like-id', h['post_like_id']);
-          /* TODO: Clean up this selector */
-          var num_likes = post.find('.post-tools .num-likes, .post-stats .num-likes');
-          num_likes.find('.value').text( h['num_likes'] );
-          num_likes.show();
-          if( post.find('.mark-unread.hidden').length ) {
-            post.find('.mark-read').addClass('hidden');
-            post.find('.mark-unread').removeClass('hidden');
-          }
-        }
-      );
-    }
-  } )
 
-  $('.post-tools a.unlike').live( 'click', function() {
-    var link = $(this);
-    var post = link.closest('div.post, .post-excerpt');
-    if( post.length ) {
-      $.get(
-        '/likes/posts/destroy/' + link.data('post-like-id'),
-        function(response) {
-          link.addClass('hidden');
-          link.siblings('a.like').removeClass('hidden');
-          /* TODO: Clean up this selector */
-          var num_likes = post.find('.post-tools .num-likes, .post-stats .num-likes');
-          num_likes.find('.value').text( response );
-          if( response.match('0') ) {
-            num_likes.hide();
-          }
-        }
-      );
-    }
-  } )
+  $('.post-tools a.like').live( 'click', function(event) {
+    Libertree.Posts.like( $(this), event, 'div.post, .post-excerpt' );
+  } );
+
+  $('.post-tools a.unlike').live( 'click', function(event) {
+    Libertree.Posts.unlike( $(this), event, 'div.post, .post-excerpt' );
+  } );
+
+  $('.mark-read').live( 'click', function() {
+    var post = $(this).closest('div.post, div.post-excerpt');
+    Libertree.UI.enableIconSpinner(post.find('.mark-read img'));
+    Libertree.Posts.markRead( post.data('post-id') );
+    return false;
+  } );
 
   $('#comments-hide').click( function() {
-    $('div.post-pane').css('position','relative');
+    $('div.post').addClass('with-comments-sliding');
     $('div.comments, #comments-hide').hide();
     $('#comments-show').show();
-    $('div.post-pane, div.comments-pane').toggleClass('expanded-post', 500);
+    $('div.post-pane, div.comments-pane').toggleClass(
+      'expanded-post',
+      500
+    );
   } );
   $('#comments-show').click( function() {
     $('#comments-show').hide();
+    $('#comments-hide').show();
     $('div.comments-pane, div.post-pane').toggleClass('expanded-post', 500).promise().done(
       function () {
-        $('div.comments, #comments-hide').show();
-        $('div.post-pane').css('position','absolute');
+        $('div.comments').show();
+        $('div.post').removeClass('with-comments-sliding');
+      }
+    );
+  } );
+
+  $('.post-tools a.hide').live( 'click', function() {
+    $(this).hide();
+    $(this).siblings('.confirm-hide').show();
+    return false;
+  } );
+  $('.excerpts-view .confirm-hide').live( 'click', function(event) {
+    event.preventDefault();
+    var post = $(this).closest('div.post-excerpt');
+    Libertree.Posts.hide(
+      post.data('post-id'),
+      function() {
+        post.
+          slideUp(1000).
+          promise().
+          done(
+            function() { post.remove(); }
+          )
+        ;
+      }
+    );
+  } );
+  $('.single-post-view .confirm-hide').live( 'click', function(event) {
+    event.preventDefault();
+    var post = $(this).closest('div.post');
+    Libertree.Posts.hide(
+      post.data('post-id'),
+      function() {
+        window.location = '/home';
       }
     );
   } );
 
   $('.mark-unread').live( 'click', function() {
     var post = $(this).closest('div.post, div.post-excerpt');
+    var icon = post.find('.mark-unread img');
+    Libertree.UI.enableIconSpinner(icon);
     $.get(
-      '/posts/unread/' + post.data('post-id'),
+      '/posts/_unread/' + post.data('post-id'),
       function() {
+        Libertree.UI.disableIconSpinner(icon);
         post.find('.mark-unread').addClass('hidden');
         post.find('.mark-read').removeClass('hidden');
       }
@@ -81,11 +82,22 @@ $(document).ready( function() {
     return false;
   } );
 
-  $('.post-tools .delete').live( 'click', function() {
-    if( confirm('Delete this post?') ) {
+  $('.post-tools .delete').live( 'click', function(event) {
+    event.preventDefault();
+    if( confirm($(this).data('msg')) ) {
       var post = $(this).closest('div[data-post-id]');
       window.location = '/posts/destroy/' + post.data('post-id');
     }
+  } );
+
+  $('.post-tools .subscribe').live( 'click', function() {
+    var post = $(this).closest('div.post, div.post-excerpt');
+    Libertree.Posts.subscribe( post );
+    return false;
+  } );
+  $('.post-tools .unsubscribe').live( 'click', function() {
+    var post = $(this).closest('div.post, div.post-excerpt');
+    Libertree.Posts.unsubscribe( post );
     return false;
   } );
 } );
