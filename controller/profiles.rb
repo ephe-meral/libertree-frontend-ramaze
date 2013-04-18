@@ -1,9 +1,8 @@
 module Controller
   class Profiles < Base
     map '/profiles'
-
     before_all do
-      require_login
+      default_before_filter
     end
 
     layout do |path|
@@ -17,12 +16,24 @@ module Controller
     end
 
     def show( member_id )
+      @view = "excerpts-view profile"
       @member = Libertree::Model::Member[ member_id.to_i ]
       if @member.nil?
         redirect_referrer
       end
 
+      @rivers = account.rivers_not_appended
       @profile = @member.profile
+      @posts = @member.posts
+    end
+
+    def _more( member_id, older_or_newer = 'older', time = Time.now.to_i )
+      member = Libertree::Model::Member[ member_id.to_i ]
+      @posts = member.posts(
+        limit: 8,
+        time: time.to_f,
+        newer: ( older_or_newer == 'newer' ),
+      )
     end
 
     def edit
@@ -32,24 +43,19 @@ module Controller
     def update
       return  if ! request.post?
 
-      name_display = request['name_display']
+      name_display = request['name_display'].to_s
       if name_display.strip.empty?
         name_display = nil
       end
       begin
+        account.member.dirty
         account.member.profile.set(
           name_display: name_display,
-          description: request['description']
-        )
-        Libertree::Model::Job.create(
-          task: 'request:MEMBER',
-          params: {
-            'member_id' => account.member.id,
-          }.to_json
+          description: request['description'].to_s
         )
       rescue PGError => e
         if e.message =~ /valid_name_display/
-          flash[:error] = 'Special characters are not allowed in display names.'
+          flash[:error] = _('Special characters are not allowed in display names.')
           redirect_referrer
         else
           raise e
@@ -59,17 +65,34 @@ module Controller
       redirect r(:show, account.member.id)
     end
 
+    def avatar_reset
+      options = Controller::Accounts.options
+      dir = File.join(options.roots.first, options.publics.first, 'images', 'avatars')
+      basename = "#{account.member.id}.png"
+      avatar_path = File.expand_path(basename, dir)
+
+      begin
+        FileUtils.rm avatar_path
+        account.member.avatar_path = nil
+        flash[:notice] = _('Avatar deleted.')
+      rescue
+        flash[:error] = _('Failed to reset avatar.')
+      end
+
+      redirect_referrer
+    end
+
     def avatar_upload
       return  if ! request.post?
 
       tempfile, filename, type = request['file'].values_at(:tempfile, :filename, :type)
       if type.split('/').first != 'image'
-        flash[:error] = 'Only image files may be used as avatars.'
+        flash[:error] = _('Only image files may be used as avatars.')
         redirect_referrer
       end
       extension = File.extname(filename).downcase
       if ! ['.png', '.jpg', '.jpeg', '.gif',].include?(extension)
-        flash[:error] = 'Only .png, .jpeg and .gif files may be used as avatars.'
+        flash[:error] = _('Only .png, .jpeg and .gif files may be used as avatars.')
         redirect_referrer
       end
 
@@ -92,14 +115,8 @@ module Controller
       File.chmod  0644, save_path
 
       account.member.avatar_path = "/images/avatars/#{basename}"
-      Libertree::Model::Job.create(
-        task: 'request:MEMBER',
-        params: {
-          'member_id' => account.member.id,
-        }.to_json
-      )
 
-      flash[:notice] = "Avatar changed."
+      flash[:notice] = _('Avatar changed.')
       redirect_referrer
     end
   end

@@ -4,8 +4,6 @@ module Controller
       class Posts < Base
         map '/api/v1/posts'
 
-        helper :cleanse
-
         layout nil
 
         before_all do
@@ -17,19 +15,21 @@ module Controller
             respond '', 405
           end
 
+          if request['source'].nil? || request['source'].to_s.strip.empty?
+            respond '', 400
+          end
+
+          visibility = request['visibilty'] || 'forest'
+          visibility = visibility.to_s
+
           post = Libertree::Model::Post.create(
-            'member_id' => @account.member.id,
-            'public'    => true,
-            'text'      => cleanse( request['text'] )
-          )
-          Libertree::Model::Job.create(
-            task: 'request:POST',
-            params: {
-              'post_id' => post.id,
-            }.to_json
+            'member_id'  => @account.member.id,
+            'visibility' => visibility,
+            'text'       => request['text'].to_s,
+            'via'        => Libertree.plain( request['source'].to_s )
           )
 
-          { 'success' => true }.to_json
+          { 'success' => true, 'id' => post.id }.to_json
         end
       end
     end

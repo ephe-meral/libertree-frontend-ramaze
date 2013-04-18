@@ -1,9 +1,8 @@
 module Controller
   class Rivers < Base
     map '/rivers'
-
     before_all do
-      require_login
+      default_before_filter
     end
 
     layout do |path|
@@ -17,7 +16,52 @@ module Controller
     end
 
     def index
-      @rivers = account.rivers
+      @rivers = account.rivers_not_appended
+      @rivers_global = account.rivers_appended
+    end
+
+    def _create_tutorial_river
+      return  if ! request.post?
+
+      begin
+        query = request['query'].to_s.strip
+        if ! query.empty?
+          query.gsub!( /[,;']/, '' )
+          Libertree::Model::River.create(
+            account_id: account.id,
+            label: s_('tutorial-river-label|My interests'),
+            query: query,
+            home: true,
+          )
+        end
+        { 'status' => 'success' }.to_json
+      rescue
+        {
+          'status' => 'error',
+          'msg'    => s_('tutorial|An error occurred while trying to create a river.')
+        }.to_json
+      end
+    end
+
+    def _create_default_rivers
+      return  if ! request.post?
+      failed = []
+
+      request['rivers'].each_pair do |i, river|
+        begin
+          Libertree::Model::River.create(
+            account_id: account.id,
+            label: river['label'].to_s,
+            query: river['query'].to_s,
+          )
+        rescue
+          failed << river['label']
+          next
+        end
+      end
+
+      # TODO: report failures instead of ignoring them
+      { 'status' => 'success' }.to_json
     end
 
     def create
@@ -26,19 +70,27 @@ module Controller
       begin
         river = Libertree::Model::River.create(
           account_id: account.id,
-          label: request['label'],
-          query: request['query'].downcase
+          label: request['label'].to_s,
+          query: request['query'].to_s,
+          appended_to_all: !! request['appended_to_all']
         )
       rescue PGError => e
         if e.message =~ /rivers_account_id_query_key/
-          flash[:error] = 'You already have a river for that.'
+          flash[:error] = _('You already have a river for that.')
+          redirect_referrer
+        elsif e.message =~ /rivers_label_check/
+          flash[:error] = _('Please input a valid label for this river.')
           redirect_referrer
         else
           raise e
         end
       end
 
-      redirect Home.r(:/, river.id)
+      if river.appended_to_all
+        redirect r(:/)
+      else
+        redirect Home.r(:/, river.id)
+      end
     end
 
     def destroy(river_id)
@@ -76,11 +128,6 @@ module Controller
       redirect "/home/#{river.id}"
     end
 
-    def ensure_beginner_rivers_exist
-      Libertree::Model::River.ensure_beginner_rivers_for account
-      redirect Home.r(:/)
-    end
-
     def position(from_river_id, before_river_id = nil)
       rivers = account.rivers
       from_river = Libertree::Model::River[ from_river_id.to_i ]
@@ -106,6 +153,28 @@ module Controller
     def set_home(river_id)
       account.home_river = Libertree::Model::River[ account_id: account.id, id: river_id.to_i ]
       redirect_referrer
+    end
+
+    def add_spring(river_id, pool_id)
+      river = Libertree::Model::River[ account_id: account.id, id: river_id.to_i ]
+      pool = Libertree::Model::Pool[ pool_id.to_i ]
+      if river && pool
+        river.revise(
+          'label' => river.label,
+          'query' => river.query + %| :spring "#{pool.name}" "#{pool.member.handle}"|
+        )
+      end
+      ''
+    end
+
+    def _add_term(river_id, term)
+      river = Libertree::Model::River[ account_id: account.id, id: river_id.to_i ]
+      if river
+        river.revise(
+          'label' => river.label,
+          'query' => river.query + %| +#{term}|
+        )
+      end
     end
   end
 end

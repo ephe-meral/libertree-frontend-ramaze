@@ -1,43 +1,25 @@
-function updateNumNotificationsUnseen(n) {
-  var title = $('head title').text();
-  if( n == 0 ) {
-    $('#num-notifications-unseen').hide();
-    $('#menu-notifications').addClass('none');
-    title = title.replace( /^\([0-9]+\) /, '' );
-  } else {
-    $('#num-notifications-unseen').show();
-    $('#menu-notifications').removeClass('none');
-    title = title.replace( /^\([0-9]+\)/, '('+n+')' );
-    if( ! title.match(/^\([0-9]+\)/) ) {
-      title = '('+n+') ' + title;
-    }
-  }
-  $('head title').text(title);
-  $('#num-notifications-unseen').html(n);
-}
-
 $(document).ready( function() {
   $('#menu-notifications').click( function() {
     if( $('#notifications-window').is(':visible') ) {
-      hideWindows();
+      Libertree.UI.hideWindows();
       return false;
     }
 
-    if( $('#num-notifications-unseen').text() == '0' ) {
-      window.location = '/notifications'
+    if( $('#num-notifications-unseen').text() === '0' ) {
+      window.location = '/notifications';
       return false;
     }
 
-    hideWindows();
+    Libertree.UI.hideWindows();
     $('#notifications-window').empty();
-    addSpinner('#notifications-window');
+    Libertree.UI.addSpinner('#notifications-window', 'append');
     $('#notifications-window').
       load(
         '/notifications/_index',
         function(html) {
-          checkForSessionDeath(html);
-          removeSpinner('#notifications-window');
-          updateNumNotificationsUnseen( $(html).find('.n').text() );
+          Libertree.Session.ensureAlive(html);
+          Libertree.UI.removeSpinner('#notifications-window');
+          Libertree.Notifications.updateNumUnseen( $(html).find('.n').text() );
         }
       ).
       toggle()
@@ -45,42 +27,45 @@ $(document).ready( function() {
     return false;
   } );
 
-  $('.notification a').live( 'click', function(e) {
+  $('.notification.seen a').live( 'click', function(e) {
     e.stopPropagation();
   } );
 
   $('.notification.unseen').live( 'click', function() {
-    var id = $(this).data('notification-id');
-    $('.notification[data-notification-id="'+id+'"]')
-      .removeClass('unseen')
-      .addClass('seen')
-    ;
-    $.get('/notifications/seen/' + id, function(data) {
-      updateNumNotificationsUnseen(data);
+    var ids = $(this).data('notification-ids');
+    $(this).removeClass('unseen').addClass('seen');
+    /* Also toggle on Notifications page */
+    $.each( ids, function(j, id) {
+      $('.notification[data-notification-ids="['+id+']"]').removeClass('unseen').addClass('seen');
+    } );
+    $.get('/notifications/seen/' + ids.join('/'), function(data) {
+      Libertree.Notifications.updateNumUnseen(data);
     } );
   } );
 
   $('.notification.seen').live( 'click', function() {
-    var id = $(this).data('notification-id');
-    $('.notification[data-notification-id="'+id+'"]')
-      .removeClass('seen')
-      .addClass('unseen')
-    ;
-    $.get('/notifications/unseen/' + id, function(data) {
-      updateNumNotificationsUnseen(data);
+    var ids = $(this).data('notification-ids');
+    $(this).removeClass('seen').addClass('unseen');
+    /* Also toggle on Notifications page */
+    $.each( ids, function(j, id) {
+      $('.notification[data-notification-ids="['+id+']"]').removeClass('seen').addClass('unseen');
+    } );
+    $.get('/notifications/unseen/' + ids.join('/'), function(data) {
+      Libertree.Notifications.updateNumUnseen(data);
     } );
   } );
 
-  $('#mark-all-notifications-seen').live( 'click', function() {
+  $('#mark-all-notifications-seen').live( 'click', function(event) {
+    event.preventDefault();
     $.get('/notifications/seen/all', function () {
       $('.notification')
         .removeClass('unseen')
         .addClass('seen')
       ;
-      updateNumNotificationsUnseen(0);
+      Libertree.Notifications.updateNumUnseen('0');
     } );
   } );
 
   /* Cover up occasional inconsistency in backend code */
-  updateNumNotificationsUnseen( $('#num-notifications-unseen').text() );
+  Libertree.Notifications.updateNumUnseen( $('#num-notifications-unseen').text() );
 } );

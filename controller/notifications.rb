@@ -1,9 +1,8 @@
 module Controller
   class Notifications < Base
     map '/notifications'
-
     before_all do
-      require_login
+      default_before_filter
     end
 
     layout do |path|
@@ -44,10 +43,15 @@ module Controller
           target = n.subject.post
         when Libertree::Model::CommentLike
           target = n.subject.comment
+        when Libertree::Model::Message
+          target = n.subject
+        when Libertree::Model::PoolPost
+          target = n.subject
         end
 
-        @set_keys << target
-        @sets[target] << n
+        key = [target, n.subject.class]
+        @set_keys << key
+        @sets[key] << n
       end
       @set_keys = @set_keys.uniq[0...5]
 
@@ -57,23 +61,27 @@ module Controller
       @n_more = sets_.values.reduce(0) { |sum, notif_array| sum + notif_array.size }
     end
 
-    def seen(notification_id)
-      if notification_id == 'all'
+    def seen(*notification_ids)
+      if notification_ids[0] == 'all'
         Libertree::DB.dbh.u "UPDATE notifications SET seen = TRUE WHERE account_id = ?", account.id
       else
-        n = Libertree::Model::Notification[ notification_id.to_i ]
-        if n && n.account_id == account.id
-          n.seen = true
+        notification_ids.each do |notification_id|
+          n = Libertree::Model::Notification[ notification_id.to_i ]
+          if n && n.account_id == account.id
+            n.seen = true
+          end
         end
       end
       account.dirty
       account.num_notifications_unseen
     end
 
-    def unseen(notification_id)
-      n = Libertree::Model::Notification[ notification_id.to_i ]
-      if n && n.account_id == account.id
-        n.seen = false
+    def unseen(*notification_ids)
+      notification_ids.each do |notification_id|
+        n = Libertree::Model::Notification[ notification_id.to_i ]
+        if n && n.account_id == account.id
+          n.seen = false
+        end
       end
       account.dirty
       account.num_notifications_unseen
@@ -81,11 +89,8 @@ module Controller
 
     def seen_comments(*comment_ids)
       comment_ids.each do |id|
-        Libertree::Model::Notification.for_account_and_comment_id(account, id).each do |notif|
-          notif.seen = true
-        end
+        Libertree::Model::Notification.mark_seen_for_account_and_comment_id(account, id)
       end
-      account.dirty
       account.num_notifications_unseen
     end
 

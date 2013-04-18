@@ -1,43 +1,66 @@
 # encoding: utf-8
 require 'net/http'
+require 'nokogiri'
+require 'libertree/model'
 
 module Libertree
-  def self.markdownify(s)
+  def self.markdownify(s, opts = [ :filter_html, :strike, :autolink, :hard_wrap, :notes ])
     return ''  if s.nil? or s.empty?
-
-    markdown ||= Redcarpet::Markdown.new(
-      Libertree::Markdown.new( hard_wrap: true ),
-      {
-        autolink: true,
-        space_after_headers: true,
-      }
-    )
-    markdown.render s
+    Markdown.new( s, *opts ).to_html.force_encoding('utf-8')
   end
 
   def self.hashtaggify(s)
     return ''  if s.nil? or s.empty?
-
-    s.force_encoding('utf-8').gsub(/(?<=^|\s)#([\p{Word}\p{Pd}&&[^_]]+)(?=\s|\b|$)/i) {
-      %|<a class="hashtag" data-hashtag="#{$1.downcase}">##{$1}</a>|
+    s.gsub(/(?<=^|\p{Space}|\()#([\p{Word}\p{Pd}]+)(?=\p{Space}|\b|\)|$)/i) {
+      %|<a href="/tags/#{$1.downcase}" class="hashtag">##{$1}</a>|
     }
   end
 
-  def self.post_processing(s)
+  # @param [String] rendered markdown as HTML string
+  def self.autolinker(s)
     return ''  if s.nil? or s.empty?
 
-    html = Nokogiri::HTML::fragment(s)
+    # Crude autolinker for relative links to local resources
+    s.gsub(
+      %r{(?<=^|\p{Space}|^<p>|^<li>)(/posts/show/\d+(/\d+/?(#comment-\d+)?|/(\d+/?)?)?)},
+      "<a href='\\1'>\\1</a>"
+    )
+  end
+
+  # @param [Nokogiri::HTML::DocumentFragment] parsed HTML tree
+  def self.process_links(html)
     html.css('a').each do |a|
       # strip javascript
       if a['href']
         a['href'] = a['href'].gsub(/javascript:/i, 'nojavascript:')
       end
       # resolve uris
-      if a['href'] =~ %r{http://}
+      if a['href'] =~ %r{http://} && ! a['href'].start_with?($conf['frontend_url_base'])
         a['href'] = resolve_redirection(a['href'])
       end
     end
-    html.to_xhtml
+    html
+  end
+
+  # @param [Nokogiri::HTML::DocumentFragment] parsed HTML tree
+  def self.apply_hashtags(html)
+    # hashtaggify everything that is not inside of code, link or pre tags
+    html.traverse do |node|
+      if node.text? && ["code", "pre", "a"].all? {|tag| node.ancestors(tag).empty? }
+        hashtag = Libertree::hashtaggify(node.text)
+
+        if ! hashtag.eql? node.text
+          # nokogiri strips trailing whitespace, so
+          # we need to replace it with &#32; to preserve it
+          if hashtag[-1] =~ /\s/
+            hashtag = hashtag[0..-2] + "&#32;"
+          end
+
+          node.replace( Nokogiri::HTML.fragment(hashtag) )
+        end
+      end
+    end
+    html
   end
 
   def self.resolve_redirection( url_s )
@@ -46,8 +69,8 @@ module Libertree
       return cached.url_expanded
     end
 
+    resolution = url_s
     begin
-      resolution = url_s
       url = URI.parse(url_s)
       res = nil
       num_redirections = 0
@@ -60,36 +83,89 @@ module Libertree
             break
           end
 
-          req = Net::HTTP::Get.new(url.path)
-          res = Net::HTTP.start(host, port) { |http|  http.request(req) }
+          res = Net::HTTP.get_response(url)
 
           if res.header['location']
             url = URI.parse(res.header['location'])
             num_redirections += 1
           else
             resolution = url.to_s
-            Libertree::Model::UrlExpansion.create(
-              :url_short => url_s,
-              :url_expanded => resolution
-            )
             break
           end
         end
-
-        resolution
       end
-    rescue Timeout::Error, URI::InvalidURIError, IOError, Errno::ECONNREFUSED, Errno::ECONNRESET, Net::HTTPBadResponse, ArgumentError
-      url_s
+    rescue SocketError, Timeout::Error, URI::InvalidURIError, IOError, Errno::ECONNREFUSED, Errno::ECONNRESET, Net::HTTPBadResponse, ArgumentError, OpenSSL::SSL::SSLError, Zlib::BufError
+      # Use URL as is.  Arbo can delete url_expansions record to force retry.
+    rescue StandardError => e
+      Ramaze::Log.error e
     end
+
+    Libertree::Model::UrlExpansion.create(
+      :url_short => url_s,
+      :url_expanded => resolution
+    )
+
+    resolution
   end
 
-  def self.render(s)
-    post_processing( markdownify( hashtaggify(s) ) )
+  def self.render_unsafe(s)
+    Markdown.new(
+      s,
+      :strike,
+      :autolink,
+      :hard_wrap
+    ).to_html.force_encoding('utf-8')
+  end
+
+  # filter HTML but ignore markdown
+  def self.plain(s)
+    Nokogiri::HTML.fragment(self.markdownify(s)).inner_text
+  end
+
+  def self.render(s, autoembed=false, filter_images=false)
+
+    # FIXME: when :smart is enabled, "/posts/show/987/123/#comment-123" is
+    # turned into "<p>/posts/show/987/123/#comment&ndash;123</p>".
+    #
+    # This only affects relative URLs that should be caught by the autolinker.
+    # The problem could be fixed by moving the autolinker for relative URLs
+    # into the markdown parser. A solution that matches against
+    # "#comment&ndash;" would be quite ugly.
+
+    opts = [
+      :filter_html,
+      #:smart,
+      :strike,
+      :autolink,
+      :hard_wrap,
+      :notes
+    ]
+    opts.push :no_images if filter_images
+    opts.push :media if autoembed
+
+    pipeline = [
+      method(:autolinker),
+      Nokogiri::HTML.method(:fragment),
+      method(:process_links),
+      method(:apply_hashtags),
+      (Embedder.method(:inject_objects) if autoembed)
+    ].compact
+
+    # apply methods sequentially to string
+    pipeline.reduce(markdownify(s, opts)) {|acc,f| f.call(acc)}.to_s
   end
 
   module HasRenderableText
-    def text_rendered
-      Libertree.render self.text
+    def text_rendered(account=nil)
+      if account
+        autoembed = account.autoembed
+        filter_images = account.filter_images
+      else
+        autoembed = false
+        filter_images = false
+      end
+
+      Libertree.render self.text, autoembed, filter_images
     end
   end
 

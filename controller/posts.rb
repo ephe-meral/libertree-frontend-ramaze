@@ -3,7 +3,12 @@ module Controller
     map '/posts'
 
     before_all do
-      require_login
+      if action.view_value.nil?
+        if Ramaze::Current.request.path !~ %r{^/posts/show/}
+          require_login
+        end
+        init_locale
+      end
     end
 
     layout do |path|
@@ -20,21 +25,30 @@ module Controller
       @posts = Libertree::Model::Post.s("SELECT * FROM posts ORDER BY id DESC")
     end
 
-    def _excerpts( river_id, older_than = Time.now.to_i )
+    def _excerpts( river_id, older_or_newer = 'older', time = Time.now.to_i )
       @river = Libertree::Model::River[ account_id: account.id, id: river_id.to_i ]
       if @river.nil?
         @posts = []
       else
         @river_post_order = session[:river_post_order]
-        @posts = @river.posts( order_by: @river_post_order, limit: 8, older_than: older_than.to_i ).reverse
+        @posts = @river.posts(
+          order_by: @river_post_order,
+          limit: 8,
+          time: time.to_f,
+          newer: ( older_or_newer == 'newer' ),
+        ).reverse
       end
+    end
+
+    def new
+      @view = "post-new"
     end
 
     def create
       redirect_referrer  if ! request.post?
 
-      if request['hashtags'] && ! request['hashtags'].strip.empty?
-        hashtags = "\n\n" + request['hashtags'].strip.
+      if request['hashtags'] && ! request['hashtags'].to_s.strip.empty?
+        hashtags = "\n\n" + request['hashtags'].to_s.strip.
           split(/[;., ]+/).
           map { |tag|
             if tag[0] != '#'
@@ -47,49 +61,68 @@ module Controller
         hashtags = ''
       end
 
-      text = ( request['text'] + hashtags )
+      text = ( request['text'].to_s + hashtags )
       text.encode!('UTF-16', 'UTF-8', :invalid => :replace, :replace => '?')
       text.encode!('UTF-8', 'UTF-16')
-      text = cleanse(text) || ''
 
       if text.empty?
-        flash[:error] = 'Post may not be empty.'
+        flash[:error] = _('Post may not be empty.')
         redirect_referrer
       end
 
+      visibility = request['visibility'].to_s
+
+      if text.length > 32
+        post = Libertree::Model::Post[
+          member_id: account.member.id,
+          visibility: visibility,
+          text: text
+        ]
+        if post
+          flash[:error] = _('You already posted that. (%s)' % ago(post.time_created) )
+          redirect_referrer
+        end
+      end
+
       post = Libertree::Model::Post.create(
-        'member_id' => account.member.id,
-        'public'    => true,
-        'text'      => text
-      )
-      Libertree::Model::Job.create(
-        task: 'request:POST',
-        params: {
-          'post_id' => post.id,
-        }.to_json
+        'member_id'  => account.member.id,
+        'visibility' => visibility,
+        'text'       => text
       )
       session[:saved_text]['textarea-post-new'] = nil
 
       redirect r(:show, post.id)
     end
 
-    def show(post_id)
+    def show(post_id, from_comment_id = nil)
       @view = "single-post-view"
       @post = Libertree::Model::Post[post_id.to_i]
-      if @post
-        @subtitle = %{#{@post.member.username} - "#{@post.glimpse}"}
-        @post.mark_as_read_by account
-
-        Libertree::Model::Notification.for_account_and_post( account, @post ).each do |n|
-          n.seen = true
-        end
-        account.dirty
+      if @post.nil?
+        respond (render_full "/error_404"), 404
       else
-        respond "404: Not Found", 404
+        if ! @post.v_internet?
+          require_login
+        end
+
+        @subtitle = %{#{@post.member.name_display} - "#{@post.glimpse}"}
+        if from_comment_id
+          @comment_fetch_options = {
+            from_id: from_comment_id.to_i,
+          }
+        else
+          @comment_fetch_options = {
+            limit: 8,
+          }
+        end
+
+        if logged_in?
+          @post.mark_as_read_by account
+          Libertree::Model::Notification.mark_seen_for_account_and_post  account, @post
+        end
       end
     end
 
-    def read(post_id)
+    def _read(post_id)
       post = Libertree::Model::Post[post_id.to_i]
       if post
         post.mark_as_read_by account
@@ -97,7 +130,7 @@ module Controller
       ""
     end
 
-    def unread(post_id)
+    def _unread(post_id)
       post = Libertree::Model::Post[post_id.to_i]
       if post
         post.mark_as_unread_by account
@@ -105,21 +138,37 @@ module Controller
       ""
     end
 
+    def _subscribe(post_id)
+      post = Libertree::Model::Post[post_id.to_i]
+      if post
+        account.subscribe_to post
+      end
+      ""
+    end
+
+    def _unsubscribe(post_id)
+      post = Libertree::Model::Post[post_id.to_i]
+      if post
+        account.unsubscribe_from post
+      end
+      ""
+    end
+
     def destroy(post_id)
       post = Libertree::Model::Post[post_id.to_i]
-      if post && post.member == account.member && post.comments.size == 0
-        Libertree::Model::Job.create(
-          task: 'request:POST-DELETE',
-          params: {
-            'post_id' => post.id,
-          }.to_json
-        )
+      if post && post.member == account.member
         post.delete_cascade
       end
-      redirect Home.r(:/)
+
+      if request.env['HTTP_REFERER'] =~ %r{/posts/show/#{post_id}}
+        redirect Home.r(:/)
+      else
+        redirect_referrer
+      end
     end
 
     def edit(post_id)
+      @view = "post-edit"
       @post = Libertree::Model::Post[post_id.to_i]
       redirect_referrer  if @post.nil?
       session[:saved_text]['textarea-post-edit'] = @post.text
@@ -131,18 +180,12 @@ module Controller
       redirect_referrer  if post.nil? || post.member != account.member
 
       if ! request.params['cancel']
-        text = request['text']
+        text = request['text'].to_s
         # TODO: DRY up along with #encode! calls in #create action
         text.encode!('UTF-16', 'UTF-8', :invalid => :replace, :replace => '?')
         text.encode!('UTF-8', 'UTF-16')
 
-        post.revise cleanse(text)
-        Libertree::Model::Job.create(
-          task: 'request:POST',
-          params: {
-            'post_id' => post.id,
-          }.to_json
-        )
+        post.revise text, request['visibility'].to_s
         session[:saved_text]['textarea-post-edit'] = nil
       end
 

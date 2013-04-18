@@ -1,17 +1,34 @@
-#{ render_partial '_menu', river_post_order: @river_post_order }
+#{ render_file 'layout/_sidebar.xhtml' }
 
-River: <select id="river-selector">
-  <?r account.rivers.each do |r| ?>
-    <option value="#{r.id}" #{r == @river ? 'selected' : ''}>#{r.label}</option>
+<?r if @no_rivers ?>
+  <div id="no-rivers" class="panel">
+    <p>
+      #{_('In order to see posts here, you need to have at least one river.')}
+    </p>
+    <p>
+      #{_('%sCreate one now%s') % ["<a href='/rivers/new'>", "</a>"]}
+    </p>
+  </div>
+<?r else ?>
+  <div id="post-excerpts" data-river-id="#{@river ? @river.id : ''}">
+    <div class="more-posts">
+      <a href="#" class="load-more"></a>
+    </div>
+    <?r if @posts.empty? ?>
+      <div id="no-more-posts" class="panel">
+        #{_('No more posts (for now).')}
+      </div>
+    <?r else ?>
+      <?r @posts.reverse.each_with_index do |post, index| ?>
+        #{ Controller::Posts.render_partial '_excerpt', post: post, river_post_order: @river_post_order, is_first: index == 0 }
+      <?r end ?>
+    <?r end ?>
+    <div class="spinner"></div>
+  </div>
+
+  <?r if @river && @river.being_processed? ?>
+    <div id="no-more-posts" class="panel">
+    #{_('The system is still matching posts with this river. Check in a few minutes for more posts.')}
+    </div>
   <?r end ?>
-</select>
-
-<a href="/rivers">manage rivers</a>
-
-<hr/>
-
-<div id="post-excerpts" data-river-id="#{@river ? @river.id : ''}">
-  <?r @posts.reverse.each do |post| ?>
-    #{ Controller::Posts.render_partial '_excerpt', post: post, river_post_order: @river_post_order }
-  <?r end ?>
-</div>
+<?r end ?>
